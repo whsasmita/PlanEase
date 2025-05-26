@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:plan_ease/page/notification/notification.dart';
 import 'package:plan_ease/page/polling/polling.dart';
-import 'package:plan_ease/page/profile/profile.dart';
 import 'package:plan_ease/page/schedule/schedule.dart';
 import 'package:plan_ease/widget/home/home.dart';
 import 'package:plan_ease/widget/component/appbar.dart';
