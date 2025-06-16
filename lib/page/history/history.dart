@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:plan_ease/widget/history//history.dart';
+import 'package:plan_ease/widget/history/history.dart';
 
 class RiwayatPollingScreen extends StatefulWidget {
   const RiwayatPollingScreen({super.key});

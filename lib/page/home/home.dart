@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:plan_ease/page/notula/notula.dart';
 import 'package:plan_ease/page/polling/polling.dart';
 import 'package:plan_ease/page/schedule/schedule.dart';
 import 'package:plan_ease/widget/home/home.dart';
 import 'package:plan_ease/widget/component/appbar.dart';
 import 'package:plan_ease/widget/component/bottombar.dart';
+import 'package:plan_ease/service/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,16 +30,35 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Center(
             child: Text(
               'Slide $i',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         );
       }).toList();
 
+  // Variabel untuk menyimpan role pengguna
+  String _userRole = '';
+  // Instance dari ApiService
+  final ApiService _apiService = ApiService();
+
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 1);
+    // Panggil fungsi untuk memuat role pengguna saat initState
+    _loadUserRole();
+  }
+
+  // Fungsi untuk memuat role pengguna dari SharedPreferences
+  Future<void> _loadUserRole() async {
+    String? role = await _apiService.getUserRole();
+    setState(() {
+      _userRole = role ?? ''; // Set role, default ke string kosong jika null
+    });
   }
 
   void _onPageChanged(int index) {
@@ -57,6 +78,30 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  Route _createFancyRoute(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        const curve = Curves.easeInOut;
+
+        final slideTween =
+            Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        final fadeTween = Tween<double>(begin: 0.0, end: 1.0);
+
+        return SlideTransition(
+          position: animation.drive(slideTween),
+          child: FadeTransition(
+            opacity: animation.drive(fadeTween),
+            child: child,
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 600),
+    );
   }
 
   Widget _buildLoopingCarousel() {
@@ -83,8 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _currentPage == 0
                     ? _slides.length - 1
                     : _currentPage == _slides.length + 1
-                    ? 0
-                    : _currentPage - 1;
+                        ? 0
+                        : _currentPage - 1;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -111,7 +156,6 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
-            // Menu utama
             Container(
               padding: const EdgeInsets.symmetric(vertical: 20),
               decoration: BoxDecoration(
@@ -124,7 +168,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   MenuIcon(
                     icon: FontAwesomeIcons.fileLines,
                     label: 'Notula',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        _createFancyRoute(const NotulaScreen()),
+                      );
+                    },
                   ),
                   MenuIcon(
                     icon: FontAwesomeIcons.pollH,
@@ -132,9 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const PollingScreen(),
-                        ),
+                        _createFancyRoute(const PollingScreen()),
                       );
                     },
                   ),
@@ -144,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const JadwalScreen()),
+                        _createFancyRoute(const JadwalScreen()),
                       );
                     },
                   ),
@@ -152,12 +199,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Carousel
             _buildLoopingCarousel(),
             const SizedBox(height: 20),
-
-            // Section: Polling berjalan
             const SectionCard(
               title: 'Polling berjalan',
               items: [
@@ -167,9 +210,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // Section: Kegiatan terbaru
-            const SectionCard(title: 'Kegiatan terbaru', items: []),
+            const SectionCard(
+              title: 'Kegiatan terbaru',
+              items: [],
+            ),
           ],
         ),
       ),

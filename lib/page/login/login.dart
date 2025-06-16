@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:plan_ease/widget/login/login.dart';
+import 'package:plan_ease/widget/login/splashscreen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -8,8 +8,8 @@ class LoginScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1E8C7A),
-      body: const Center(
-        child: LoginForm(),
+      body: Center(
+        child: SplashScreen(), // Tanpa 'const'
       ),
     );
   }
