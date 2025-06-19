@@ -55,16 +55,27 @@ class _SplashScreenState extends State<SplashScreen>
         opacity: _fadeAnimation,
         child: ScaleTransition(
           scale: _scaleAnimation,
-          child: const Center(
-            child: Text(
-              'Welcome to\nPlanEase',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontFamily: 'Poppins',
-              ),
+          child: Center(
+            child: Column( // Use Column to stack widgets vertically
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'assets/images/PlanEase.png', // Make sure you have a logo.png in your assets folder
+                  width: 300, // Adjust width as needed
+                  height: 150, // Adjust height as needed
+                ),
+                const SizedBox(height: 5), // Add some spacing between logo and text
+                const Text(
+                  'PlanEase',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ],
             ),
           ),
         ),

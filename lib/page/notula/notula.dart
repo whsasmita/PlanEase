@@ -1,9 +1,10 @@
 // lib/page/notula/notula.dart
 import 'package:flutter/material.dart';
-import 'package:plan_ease/model/model.dart'; // Import kelas Notula
-import 'package:plan_ease/widget/notula/notula.dart'; // Import NotulaListItem
-import 'package:plan_ease/page/notula/form_notula.dart'; // Pastikan ini path yang benar untuk TambahNotulaScreen
-import 'package:plan_ease/service/api_service.dart'; // Import ApiService
+import 'package:plan_ease/model/model.dart';
+import 'package:plan_ease/widget/notula/notula.dart';
+import 'package:plan_ease/page/notula/form_notula.dart';
+import 'package:plan_ease/service/api_service.dart';
+import 'package:plan_ease/page/notula/detail_notula.dart'; // NEW: Import DetailNotulaScreen
 
 class NotulaScreen extends StatefulWidget {
   const NotulaScreen({super.key});
@@ -13,36 +14,32 @@ class NotulaScreen extends StatefulWidget {
 }
 
 class _NotulaScreenState extends State<NotulaScreen> {
-  // Ganti _daftarNotula dengan daftar yang akan diisi dari API
   List<Notula> _daftarNotula = [];
-  bool _isLoading = true; // Tambahkan status loading
-  String? _errorMessage; // Tambahkan untuk menampilkan pesan error
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  bool isAdmin = false; // Akan di-update dari ApiService
-  final ApiService _apiService = ApiService(); // Instance ApiService
+  bool isAdmin = false;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
-    _checkUserRoleAndFetchNotula(); // Panggil fungsi gabungan ini
+    _checkUserRoleAndFetchNotula();
   }
 
-  // Fungsi untuk memeriksa role pengguna DAN mengambil notula
   Future<void> _checkUserRoleAndFetchNotula() async {
     setState(() {
-      _isLoading = true; // Mulai loading
-      _errorMessage = null; // Reset pesan error
+      _isLoading = true;
+      _errorMessage = null;
     });
 
     try {
-      // 1. Periksa Role Pengguna
       String? role = await _apiService.getUserRole();
       setState(() {
         isAdmin = (role == 'ADMIN');
       });
       print('NotulaScreen: User role is $role, isAdmin is $isAdmin');
 
-      // 2. Ambil Data Notula
       List<Notula> fetchedNotula = await _apiService.getNotula();
       setState(() {
         _daftarNotula = fetchedNotula;
@@ -50,20 +47,85 @@ class _NotulaScreenState extends State<NotulaScreen> {
     } catch (e) {
       print('Error fetching data in NotulaScreen: $e');
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', ''); // Hapus "Exception: "
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
       setState(() {
-        _isLoading = false; // Selesai loading
+        _isLoading = false;
       });
     }
   }
 
   void _tambahNotulaBaru(Notula newNotula) {
-    setState(() {
-      _daftarNotula.add(newNotula);
-    });
     _checkUserRoleAndFetchNotula();
+  }
+
+  Future<void> _editNotula(Notula updatedNotula) async {
+    try {
+      await _apiService.updateNotula(updatedNotula);
+      setState(() {
+        final index = _daftarNotula.indexWhere((n) => n.id == updatedNotula.id);
+        if (index != -1) {
+          _daftarNotula[index] = updatedNotula;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notula berhasil diperbarui!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui notula: ${e.toString().replaceFirst('Exception: ', '')}')),
+      );
+    }
+  }
+
+  Future<void> _deleteNotula(String notulaId) async {
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Hapus'),
+          content: const Text('Apakah Anda yakin ingin menghapus notula ini?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == true) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        await _apiService.deleteNotula(notulaId);
+
+        setState(() {
+          _daftarNotula.removeWhere((notula) => notula.id == notulaId);
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notula berhasil dihapus!')),
+        );
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus notula: ${e.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+    }
   }
 
   void _navigateToTambahNotulaScreen() {
@@ -77,6 +139,16 @@ class _NotulaScreenState extends State<NotulaScreen> {
     );
   }
 
+  void _navigateToDetailNotulaScreen(Notula notula) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HalamanDetailNotula(notula: notula),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,16 +159,16 @@ class _NotulaScreenState extends State<NotulaScreen> {
         centerTitle: true,
         foregroundColor: Colors.white,
       ),
-      body: _isLoading // Tampilkan loading indicator
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E8C7A)))
-          : _errorMessage != null // Tampilkan pesan error jika ada
+          : _errorMessage != null
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, color: Colors.red, size: 50),
+                        const Icon(Icons.error_outline, color: Colors.red, size: 50),
                         const SizedBox(height: 10),
                         Text(
                           'Terjadi kesalahan: $_errorMessage',
@@ -105,7 +177,7 @@ class _NotulaScreenState extends State<NotulaScreen> {
                         ),
                         const SizedBox(height: 20),
                         ElevatedButton(
-                          onPressed: _checkUserRoleAndFetchNotula, // Coba lagi
+                          onPressed: _checkUserRoleAndFetchNotula,
                           child: const Text('Coba Lagi'),
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E8C7A), foregroundColor: Colors.white),
                         ),
@@ -113,7 +185,7 @@ class _NotulaScreenState extends State<NotulaScreen> {
                     ),
                   ),
                 )
-              : _daftarNotula.isEmpty // Tampilkan pesan jika daftar kosong setelah loading
+              : _daftarNotula.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -136,7 +208,25 @@ class _NotulaScreenState extends State<NotulaScreen> {
                       itemCount: _daftarNotula.length,
                       itemBuilder: (context, index) {
                         final notula = _daftarNotula[index];
-                        return NotulaListItem(notula: notula);
+                        return NotulaListItem(
+                          notula: notula,
+                          isAdmin: isAdmin,
+                          onEdit: isAdmin ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TambahNotulaScreen(
+                                  notulaToEdit: notula,
+                                  onAddNotula: (updatedNotula) {
+                                    _editNotula(updatedNotula);
+                                  },
+                                ),
+                              ),
+                            );
+                          } : null,
+                          onDelete: isAdmin ? () => _deleteNotula(notula.id.toString()) : null,
+                          onTap: () => _navigateToDetailNotulaScreen(notula), // NEW: Pass the onTap callback
+                        );
                       },
                     ),
       floatingActionButton: isAdmin

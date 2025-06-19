@@ -1,11 +1,17 @@
+// lib/page/notula/form_notula.dart
 import 'package:flutter/material.dart';
-import 'package:plan_ease/model/model.dart'; // Import model Notula
-import 'package:plan_ease/service/api_service.dart'; // Import ApiService
+import 'package:plan_ease/model/model.dart';
+import 'package:plan_ease/service/api_service.dart';
 
 class TambahNotulaScreen extends StatefulWidget {
   final Function(Notula) onAddNotula;
+  final Notula? notulaToEdit;
 
-  const TambahNotulaScreen({Key? key, required this.onAddNotula}) : super(key: key);
+  const TambahNotulaScreen({
+    super.key,
+    required this.onAddNotula,
+    this.notulaToEdit,
+  });
 
   @override
   State<TambahNotulaScreen> createState() => _TambahNotulaScreenState();
@@ -13,12 +19,23 @@ class TambahNotulaScreen extends StatefulWidget {
 
 class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();       // Renamed
+  final TextEditingController _descriptionController = TextEditingController(); // Renamed
+  final TextEditingController _contentController = TextEditingController();     // New
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  final ApiService _apiService = ApiService(); // Instance ApiService
-  bool _isLoading = false; // State untuk indikator loading
+  final ApiService _apiService = ApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.notulaToEdit != null) {
+      _titleController.text = widget.notulaToEdit!.title;
+      _descriptionController.text = widget.notulaToEdit!.description;
+      _contentController.text = widget.notulaToEdit!.content;
+    }
+  }
 
   @override
   void dispose() {
@@ -28,40 +45,51 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
     super.dispose();
   }
 
-  void _showSnackBar(String message, {Color backgroundColor = Colors.green}) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: backgroundColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  Future<void> _submitNotula() async {
+  Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _isLoading = true; // Mulai loading
+        _isLoading = true;
+        _errorMessage = null;
       });
 
       try {
-        // Panggil API untuk menambahkan notula
-        final Notula addedNotula = await _apiService.addNotula(
-          title: _titleController.text,
-          description: _descriptionController.text,
-          content: _contentController.text,
-        );
+        final String title = _titleController.text;
+        final String description = _descriptionController.text;
+        final String content = _contentController.text;
 
-        _showSnackBar('Notula berhasil ditambahkan!');
-        widget.onAddNotula(addedNotula); // Panggil callback dengan notula yang sudah ada ID-nya
-        Navigator.pop(context); // Kembali ke halaman sebelumnya
+        if (widget.notulaToEdit == null) {
+          final Notula newNotula = Notula(
+            id: null,
+            title: title,
+            description: description,
+            content: content,
+          );
+          await _apiService.addNotula(newNotula);
+          widget.onAddNotula(newNotula);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Notula berhasil ditambahkan!')),
+          );
+        } else {
+          final Notula updatedNotula = Notula(
+            id: widget.notulaToEdit!.id,
+            title: title,
+            description: description,
+            content: content,
+          );
+          await _apiService.updateNotula(updatedNotula);
+          widget.onAddNotula(updatedNotula);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Notula berhasil diperbarui!')),
+          );
+        }
+        Navigator.pop(context);
       } catch (e) {
-        _showSnackBar('Gagal menambahkan notula: ${e.toString().replaceFirst('Exception: ', '')}', backgroundColor: Colors.red);
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
       } finally {
         setState(() {
-          _isLoading = false; // Selesai loading
+          _isLoading = false;
         });
       }
     }
@@ -69,29 +97,29 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isEditing = widget.notulaToEdit != null;
     return Scaffold(
       backgroundColor: const Color(0xFFD9E5D6),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E8C7A),
-        title: const Text('Tambah Notula Baru'),
+        title: Text(isEditing ? 'Edit Notula' : 'Tambah Notula Baru'),
         centerTitle: true,
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Judul Notula',
-                  border: OutlineInputBorder(),
+                controller: _titleController, // Changed controller
+                decoration: InputDecoration(
+                  labelText: 'Judul', // Changed label
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                 ),
@@ -104,10 +132,14 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Deskripsi Singkat',
-                  border: OutlineInputBorder(),
+                controller: _descriptionController, // Changed controller
+                maxLines: 3, // Adjust max lines for description
+                decoration: InputDecoration(
+                  labelText: 'Deskripsi Singkat', // Changed label
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                 ),
@@ -120,12 +152,14 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _contentController,
-                maxLines: 8,
-                decoration: const InputDecoration(
-                  labelText: 'Isi Notula',
+                controller: _contentController, // New controller
+                maxLines: 8, // Adjust max lines for content
+                decoration: InputDecoration(
+                  labelText: 'Isi Lengkap Notula', // New label
                   alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                 ),
@@ -137,23 +171,35 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
                 },
               ),
               const SizedBox(height: 24),
-              _isLoading // Tampilkan CircularProgressIndicator jika sedang loading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E8C7A)))
-                  : ElevatedButton(
-                      onPressed: _submitNotula,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E8C7A),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Simpan Notula',
-                        style: TextStyle(fontSize: 16),
-                      ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    'Error: $_errorMessage',
+                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E8C7A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
                     ),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          isEditing ? 'Simpan Perubahan' : 'Tambahkan Notula',
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                ),
+              ),
             ],
           ),
         ),

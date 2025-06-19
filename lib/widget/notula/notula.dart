@@ -1,26 +1,35 @@
+// lib/widget/notula/notula.dart
 import 'package:flutter/material.dart';
 import 'package:plan_ease/model/model.dart';
-import 'package:plan_ease/page/notula/detail_notula.dart'; // Perlu diimpor karena kita navigasi ke sana
 
 class NotulaListItem extends StatelessWidget {
   final Notula notula;
+  final bool isAdmin;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onTap; // NEW: Callback for tapping the item itself
 
-  const NotulaListItem({Key? key, required this.notula}) : super(key: key);
+  const NotulaListItem({
+    super.key,
+    required this.notula,
+    this.isAdmin = false,
+    this.onEdit,
+    this.onDelete,
+    this.onTap, // NEW: Add to constructor
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6.0),
-      elevation: 2,
-      child: InkWell( // Membuat kartu bisa diketuk
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HalamanDetailNotula(notula: notula),
-            ),
-          );
-        },
+      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+      ),
+      elevation: 3,
+      child: InkWell( // WRAP with InkWell to make it tappable
+        onTap: onTap, // Assign the onTap callback
+        borderRadius: BorderRadius.circular(12.0), // Match Card's border radius
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -29,21 +38,40 @@ class NotulaListItem extends StatelessWidget {
               Text(
                 notula.title,
                 style: const TextStyle(
-                  fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  fontSize: 18,
+                  color: Color(0xFF1E8C7A),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 notula.description,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-                maxLines: 2, // Batasi deskripsi hingga 2 baris
-                overflow: TextOverflow.ellipsis, // Tambahkan elipsis jika melebihi batas
+                style: const TextStyle(fontSize: 16),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
+              // Edit and Delete Buttons for Admin
+              if (isAdmin && (onEdit != null || onDelete != null))
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (onEdit != null)
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Color(0xFF1E8C7A)),
+                          onPressed: onEdit,
+                          tooltip: 'Edit Notula',
+                        ),
+                      if (onDelete != null)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: onDelete,
+                          tooltip: 'Hapus Notula',
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
