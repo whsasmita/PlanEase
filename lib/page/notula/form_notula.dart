@@ -1,7 +1,9 @@
 // lib/page/notula/form_notula.dart
 import 'package:flutter/material.dart';
-import 'package:plan_ease/model/model.dart';
-import 'package:plan_ease/service/api_service.dart';
+import 'package:plan_ease/model/notula.dart';
+// PERBAIKAN: Ganti import ApiService lama dengan NotulaService dan AuthService
+import 'package:plan_ease/service/notula_service.dart';
+import 'package:plan_ease/service/auth_service.dart'; // Import AuthService karena dibutuhkan oleh NotulaService
 
 class TambahNotulaScreen extends StatefulWidget {
   final Function(Notula) onAddNotula;
@@ -19,17 +21,24 @@ class TambahNotulaScreen extends StatefulWidget {
 
 class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _titleController = TextEditingController();       // Renamed
-  final TextEditingController _descriptionController = TextEditingController(); // Renamed
-  final TextEditingController _contentController = TextEditingController();     // New
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
 
-  final ApiService _apiService = ApiService();
+  // PERBAIKAN: Ganti ApiService dengan NotulaService
+  // Inisialisasi AuthService sebagai dependency untuk NotulaService
+  late final AuthService _authService;
+  late final NotulaService _notulaService;
 
   @override
   void initState() {
     super.initState();
+    // Inisialisasi service di initState
+    _authService = AuthService(); // AuthService tidak punya dependency
+    _notulaService = NotulaService(_authService); // NotulaService butuh AuthService
+
     if (widget.notulaToEdit != null) {
       _titleController.text = widget.notulaToEdit!.title;
       _descriptionController.text = widget.notulaToEdit!.description;
@@ -64,8 +73,9 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
             description: description,
             content: content,
           );
-          await _apiService.addNotula(newNotula);
-          widget.onAddNotula(newNotula);
+          // PERBAIKAN: Panggil method dari _notulaService
+          await _notulaService.addNotula(newNotula);
+          widget.onAddNotula(newNotula); // Callback ke NotulaScreen
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Notula berhasil ditambahkan!')),
           );
@@ -76,13 +86,14 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
             description: description,
             content: content,
           );
-          await _apiService.updateNotula(updatedNotula);
-          widget.onAddNotula(updatedNotula);
+          // PERBAIKAN: Panggil method dari _notulaService
+          await _notulaService.updateNotula(updatedNotula);
+          widget.onAddNotula(updatedNotula); // Callback ke NotulaScreen
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Notula berhasil diperbarui!')),
           );
         }
-        Navigator.pop(context);
+        Navigator.pop(context); // Kembali ke halaman NotulaScreen
       } catch (e) {
         setState(() {
           _errorMessage = e.toString().replaceFirst('Exception: ', '');
@@ -114,9 +125,9 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
-                controller: _titleController, // Changed controller
+                controller: _titleController,
                 decoration: InputDecoration(
-                  labelText: 'Judul', // Changed label
+                  labelText: 'Judul',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                   ),
@@ -132,10 +143,10 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _descriptionController, // Changed controller
-                maxLines: 3, // Adjust max lines for description
+                controller: _descriptionController,
+                maxLines: 3,
                 decoration: InputDecoration(
-                  labelText: 'Deskripsi Singkat', // Changed label
+                  labelText: 'Deskripsi Singkat',
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
@@ -152,10 +163,10 @@ class _TambahNotulaScreenState extends State<TambahNotulaScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _contentController, // New controller
-                maxLines: 8, // Adjust max lines for content
+                controller: _contentController,
+                maxLines: 8,
                 decoration: InputDecoration(
-                  labelText: 'Isi Lengkap Notula', // New label
+                  labelText: 'Isi Lengkap Notula',
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),

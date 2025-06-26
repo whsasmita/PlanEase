@@ -1,7 +1,7 @@
-// lib/page/login/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:plan_ease/page/home/home.dart'; // Navigasi ke HomeScreen
-import 'package:plan_ease/service/api_service.dart';
+// PERBAIKAN: Ganti import ApiService dengan AuthService
+import 'package:plan_ease/service/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Untuk menyimpan status login
 
 class LoginPage extends StatefulWidget {
@@ -12,7 +12,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final ApiService _apiService = ApiService();
+  // PERBAIKAN: Ganti ApiService dengan AuthService
+  final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _loginEmailController = TextEditingController();
@@ -58,16 +59,17 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       try {
-        final response = await _apiService.login(
+        // PERBAIKAN: Panggil method dari _authService
+        final response = await _authService.login(
           email: _loginEmailController.text,
           password: _loginPasswordController.text,
         );
 
         if (response != null && response.user != null && response.user!.role.isNotEmpty) {
-          // Login berhasil, role sudah tersimpan oleh ApiService
-          // Set status login di SharedPreferences
-          SharedPreferences prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('is_logged_in', true);
+          // Login berhasil, role sudah tersimpan oleh AuthService
+          // Set status login di SharedPreferences (ini sudah ditangani di AuthService)
+          // SharedPreferences prefs = await SharedPreferences.getInstance();
+          // await prefs.setBool('is_logged_in', true); // Tidak perlu lagi di sini
 
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomeScreen()), // Navigasi ke HomeScreen
@@ -77,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
           _showInfoSnackBar('Login gagal: Data pengguna tidak lengkap.', backgroundColor: Colors.red);
         }
       } catch (e) {
-        // Tangkap exception dari ApiService
+        // Tangkap exception dari AuthService
         _showInfoSnackBar(e.toString().replaceFirst('Exception: ', ''), backgroundColor: Colors.red);
       } finally {
         setState(() {
@@ -108,7 +110,8 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       try {
-        final String? error = await _apiService.signup(
+        // PERBAIKAN: Panggil method dari _authService
+        final String? error = await _authService.signup(
           fullName: fullName,
           email: email,
           phone: phone,
@@ -193,7 +196,12 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 16),
           TextButton(
             onPressed: () {
-              _showInfoSnackBar('Fitur Lupa Password belum tersedia.');
+              // PERBAIKAN: Panggil method dari _authService
+              _authService.recoverPassword(_loginEmailController.text).then((message) {
+                 _showInfoSnackBar(message ?? 'Link reset password telah dikirim ke email Anda.');
+              }).catchError((e) {
+                 _showInfoSnackBar('Gagal memulihkan password: ${e.toString().replaceFirst('Exception: ', '')}', backgroundColor: Colors.red);
+              });
             },
             child: const Text(
               'Lupa Password?',

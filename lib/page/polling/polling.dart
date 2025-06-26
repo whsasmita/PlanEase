@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:plan_ease/page/history/history.dart';
 import 'package:plan_ease/page/polling/form_polling.dart';
 import 'package:plan_ease/widget/polling/polling.dart'; // Ini sudah mencakup PollingItem, PollingOptionBar, dan PollingOption
-import 'package:plan_ease/service/api_service.dart'; // Import ApiService Anda
+// PERBAIKAN: Ganti import ApiService lama dengan AuthService dan PollingService
+import 'package:plan_ease/service/auth_service.dart';
+import 'package:plan_ease/service/polling_service.dart';
 
 class PollingScreen extends StatefulWidget {
   const PollingScreen({super.key});
@@ -21,11 +23,16 @@ class _PollingScreenState extends State<PollingScreen> {
   // NEW: State untuk manajemen role dan loading
   bool _isLoadingRole = true;
   bool isAdmin = false;
-  final ApiService _apiService = ApiService(); // Instance ApiService Anda
+  // PERBAIKAN: Ganti instance ApiService dengan AuthService dan PollingService
+  late final AuthService _authService;
+  late final PollingService _pollingService;
 
   @override
   void initState() {
     super.initState();
+    // Inisialisasi service di initState
+    _authService = AuthService();
+    _pollingService = PollingService(_authService);
     _checkUserRole(); // Panggil fungsi untuk cek role saat inisialisasi
   }
 
@@ -35,7 +42,8 @@ class _PollingScreenState extends State<PollingScreen> {
       _isLoadingRole = true; // Mulai loading
     });
     try {
-      String? role = await _apiService.getUserRole();
+      // PERBAIKAN: Panggil method dari _authService
+      String? role = await _authService.getUserRole();
       setState(() {
         isAdmin = (role == 'ADMIN');
         print('PollingScreen: User role is $role, isAdmin is $isAdmin'); // Untuk debugging
@@ -43,6 +51,11 @@ class _PollingScreenState extends State<PollingScreen> {
     } catch (e) {
       print('Error checking user role in PollingScreen: $e');
       // Anda bisa menampilkan pesan error ke pengguna jika diperlukan
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat peran pengguna: ${e.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
     } finally {
       setState(() {
         _isLoadingRole = false; // Hentikan loading terlepas dari sukses/gagal

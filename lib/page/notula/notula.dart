@@ -1,10 +1,12 @@
 // lib/page/notula/notula.dart
 import 'package:flutter/material.dart';
-import 'package:plan_ease/model/model.dart';
+import 'package:plan_ease/model/notula.dart';
 import 'package:plan_ease/widget/notula/notula.dart';
 import 'package:plan_ease/page/notula/form_notula.dart';
-import 'package:plan_ease/service/api_service.dart';
-import 'package:plan_ease/page/notula/detail_notula.dart'; // NEW: Import DetailNotulaScreen
+// PERBAIKAN: Ganti import ApiService lama dengan AuthService dan NotulaService
+import 'package:plan_ease/service/auth_service.dart';
+import 'package:plan_ease/service/notula_service.dart';
+import 'package:plan_ease/page/notula/detail_notula.dart';
 
 class NotulaScreen extends StatefulWidget {
   const NotulaScreen({super.key});
@@ -19,11 +21,16 @@ class _NotulaScreenState extends State<NotulaScreen> {
   String? _errorMessage;
 
   bool isAdmin = false;
-  final ApiService _apiService = ApiService();
+  // PERBAIKAN: Ganti ApiService dengan AuthService dan NotulaService
+  late final AuthService _authService;
+  late final NotulaService _notulaService;
 
   @override
   void initState() {
     super.initState();
+    // Inisialisasi service di initState
+    _authService = AuthService();
+    _notulaService = NotulaService(_authService);
     _checkUserRoleAndFetchNotula();
   }
 
@@ -34,13 +41,15 @@ class _NotulaScreenState extends State<NotulaScreen> {
     });
 
     try {
-      String? role = await _apiService.getUserRole();
+      // PERBAIKAN: Panggil method dari _authService
+      String? role = await _authService.getUserRole();
       setState(() {
         isAdmin = (role == 'ADMIN');
       });
       print('NotulaScreen: User role is $role, isAdmin is $isAdmin');
 
-      List<Notula> fetchedNotula = await _apiService.getNotula();
+      // PERBAIKAN: Panggil method dari _notulaService
+      List<Notula> fetchedNotula = await _notulaService.getNotula();
       setState(() {
         _daftarNotula = fetchedNotula;
       });
@@ -57,12 +66,15 @@ class _NotulaScreenState extends State<NotulaScreen> {
   }
 
   void _tambahNotulaBaru(Notula newNotula) {
-    _checkUserRoleAndFetchNotula();
+    _checkUserRoleAndFetchNotula(); // Panggil ulang untuk refresh daftar
   }
 
   Future<void> _editNotula(Notula updatedNotula) async {
     try {
-      await _apiService.updateNotula(updatedNotula);
+      // PERBAIKAN: Panggil method dari _notulaService
+      await _notulaService.updateNotula(updatedNotula);
+      // Anda mungkin tidak perlu setState di sini jika _checkUserRoleAndFetchNotula() akan dipanggil lagi
+      // atau jika Anda ingin update UI secara instan tanpa fetch ulang.
       setState(() {
         final index = _daftarNotula.indexWhere((n) => n.id == updatedNotula.id);
         if (index != -1) {
@@ -79,7 +91,14 @@ class _NotulaScreenState extends State<NotulaScreen> {
     }
   }
 
-  Future<void> _deleteNotula(String notulaId) async {
+  Future<void> _deleteNotula(String? notulaId) async { // Ubah tipe menjadi String?
+    if (notulaId == null || notulaId.isEmpty) { // Tambahkan pengecekan ID null/empty
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID Notula tidak valid untuk penghapusan.')),
+      );
+      return;
+    }
+
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -106,7 +125,8 @@ class _NotulaScreenState extends State<NotulaScreen> {
         _isLoading = true;
       });
       try {
-        await _apiService.deleteNotula(notulaId);
+        // PERBAIKAN: Panggil method dari _notulaService
+        await _notulaService.deleteNotula(notulaId); // notulaId dijamin tidak null di sini
 
         setState(() {
           _daftarNotula.removeWhere((notula) => notula.id == notulaId);
@@ -147,7 +167,6 @@ class _NotulaScreenState extends State<NotulaScreen> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +231,13 @@ class _NotulaScreenState extends State<NotulaScreen> {
                           notula: notula,
                           isAdmin: isAdmin,
                           onEdit: isAdmin ? () {
+                            // Pengecekan ID untuk onEdit
+                            if (notula.id == null || notula.id!.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('ID Notula tidak valid untuk edit.')),
+                              );
+                              return;
+                            }
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -224,8 +250,8 @@ class _NotulaScreenState extends State<NotulaScreen> {
                               ),
                             );
                           } : null,
-                          onDelete: isAdmin ? () => _deleteNotula(notula.id.toString()) : null,
-                          onTap: () => _navigateToDetailNotulaScreen(notula), // NEW: Pass the onTap callback
+                          onDelete: isAdmin ? () => _deleteNotula(notula.id) : null, // ID bisa null
+                          onTap: () => _navigateToDetailNotulaScreen(notula),
                         );
                       },
                     ),

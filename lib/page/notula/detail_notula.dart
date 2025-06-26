@@ -1,6 +1,6 @@
 // lib/pages/halaman_detail_notula.dart
 import 'package:flutter/material.dart';
-import 'package:plan_ease/model/model.dart';
+import 'package:plan_ease/model/notula.dart';
 
 class HalamanDetailNotula extends StatelessWidget {
   final Notula notula;

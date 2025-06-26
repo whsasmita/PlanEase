@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:plan_ease/service/api_service.dart'; // Make sure this path is correct
-import 'package:plan_ease/page/schedule/form_schedule.dart'; // Make sure this path is correct
+import 'package:intl/intl.dart';
+// PERBAIKAN: Ganti import ApiService lama dengan service yang baru
+import 'package:plan_ease/service/auth_service.dart';
+import 'package:plan_ease/service/schedule_service.dart';
+import 'package:plan_ease/page/schedule/form_schedule.dart';
+import 'package:plan_ease/model/schedule.dart';
+import 'package:plan_ease/widget/schedule/calendar_widget.dart';
+import 'package:plan_ease/widget/schedule/schedule_list_section.dart';
+import 'package:plan_ease/widget/schedule/schedule_card.dart';
+import 'package:plan_ease/page/schedule/detail_schedule.dart';
 
 class JadwalScreen extends StatefulWidget {
   const JadwalScreen({super.key});
@@ -14,52 +22,415 @@ class _JadwalScreenState extends State<JadwalScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // This map stores your activities.
-  final Map<DateTime, List<String>> _activities = {
-    DateTime.utc(2025, 6, 19): ['Meeting Proyek A', 'Presentasi Klien'],
-    DateTime.utc(2025, 6, 20): ['Rapat Tim', 'Diskusi Desain UI/UX'],
-    DateTime.utc(2025, 6, 22): ['Kuliah Pemrograman Mobile', 'Tugas Akhir'],
-    DateTime.utc(2025, 6, 25): ['Acara Kampus', 'Rapat Himpunan'],
-    DateTime.utc(2025, 7, 1): ['Liburan Bersama'],
-  };
+  List<Schedule> _schedules = [];
+  bool _isLoading = true;
+  bool isAdmin = false;
 
-  bool _isLoadingRole = true; // New state to track role loading
-  bool isAdmin = false; // New state for admin role
-  final ApiService _apiService = ApiService(); // Instantiate ApiService
+  // PERBAIKAN: Ganti ApiService dengan instance service yang spesifik
+  late final AuthService _authService;
+  late final ScheduleService _scheduleService;
 
   @override
   void initState() {
     super.initState();
-    _checkUserRole(); // Call the function to check user role
+    // INI PENTING: Inisialisasi service di sini
+    _authService = AuthService();
+    _scheduleService = ScheduleService(_authService);
+    _selectedDay = _focusedDay;
+    _loadAllData();
   }
 
-  // Function to check the user's role
-  Future<void> _checkUserRole() async {
+  Future<void> _loadAllData() async {
+    if (!mounted) return;
     setState(() {
-      _isLoadingRole = true; // Start loading
+      _isLoading = true;
     });
     try {
-      String? role = await _apiService.getUserRole();
-      setState(() {
-        isAdmin = (role == 'ADMIN');
-        print('JadwalScreen: User role is $role, isAdmin is $isAdmin'); // For debugging
-      });
+      await Future.wait([_checkUserRole(), _loadSchedules()]);
     } catch (e) {
-      print('Error checking user role in JadwalScreen: $e');
-      // Optionally show an error message to the user
+      print('Error loading initial data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Gagal memuat data. Silakan coba refresh.'),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoadingRole = false; // Stop loading regardless of success/failure
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // Function to navigate to the Add Activity screen
-  void _navigateToTambahKegiatanScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const TambahKegiatanScreen()),
+  Future<void> _checkUserRole() async {
+    try {
+      // PERBAIKAN: Panggil method dari AuthService
+      String? role = await _authService.getUserRole();
+      if (mounted) {
+        setState(() {
+          isAdmin = (role == 'ADMIN');
+          print('JadwalScreen: User role is $role, isAdmin is $isAdmin');
+        });
+      }
+    } catch (e) {
+      print('Error checking user role in JadwalScreen: $e');
+    }
+  }
+
+  Future<void> _loadSchedules() async {
+    try {
+      // PERBAIKAN: Panggil method dari ScheduleService
+      List<Schedule> schedules = await _scheduleService.getSchedules();
+      if (mounted) {
+        setState(() {
+          _schedules = schedules;
+        });
+      }
+    } catch (e) {
+      print('Error loading schedules: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal memuat jadwal kegiatan.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _addSchedule(Schedule newSchedule) async {
+    // Metode ini dipanggil saat form TambahKegiatanScreen disubmit
+    await _loadSchedules(); // Muat ulang data setelah menambahkan
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Jadwal berhasil ditambahkan!')),
+      );
+    }
+  }
+
+  Future<void> _editSchedule(Schedule updatedSchedule) async {
+    if (updatedSchedule.id == null || updatedSchedule.id! <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ID jadwal tidak valid untuk pembaruan.')),
+        );
+      }
+      return;
+    }
+    try {
+      // PERBAIKAN: Panggil method dari ScheduleService
+      await _scheduleService.updateSchedule(updatedSchedule);
+      await _loadSchedules(); // Reload data after update
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Jadwal berhasil diperbarui!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal memperbarui jadwal: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSchedule(int? scheduleId) async {
+    if (scheduleId == null || scheduleId <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ID jadwal tidak valid untuk penghapusan.')),
+        );
+      }
+      return;
+    }
+
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Hapus'),
+          content: const Text('Apakah Anda yakin ingin menghapus jadwal ini?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
     );
+
+    if (confirmDelete == true) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        // PERBAIKAN: Panggil method dari ScheduleService
+        await _scheduleService.deleteSchedule(scheduleId);
+        await _loadSchedules();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Jadwal berhasil dihapus!')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gagal menghapus jadwal: ${e.toString().replaceFirst('Exception: ', '')}',
+              ),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _navigateToTambahKegiatanScreen({
+    Schedule? scheduleToEdit,
+  }) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TambahKegiatanScreen(scheduleToEdit: scheduleToEdit),
+      ),
+    );
+    if (result == true) {
+      await _loadSchedules();
+    }
+  }
+
+  List<Schedule> _getSchedulesForDay(DateTime day) {
+    DateTime normalizedDay = DateTime.utc(day.year, day.month, day.day);
+    return _schedules.where((schedule) {
+      DateTime startDate = DateTime.utc(
+        schedule.startDate.year,
+        schedule.startDate.month,
+        schedule.startDate.day,
+      );
+      DateTime endDate = DateTime.utc(
+        schedule.endDate.year,
+        schedule.endDate.month,
+        schedule.endDate.day,
+      );
+      return normalizedDay.isAtSameMomentAs(startDate) ||
+          normalizedDay.isAtSameMomentAs(endDate) ||
+          (normalizedDay.isAfter(startDate) && normalizedDay.isBefore(endDate));
+    }).toList();
+  }
+
+  List<Schedule> _getOngoingSchedules() {
+    return _schedules.where((schedule) => schedule.isActive()).toList();
+  }
+
+  List<Schedule> _getUpcomingSchedules() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final nextWeek = today.add(const Duration(days: 7));
+    return _schedules
+        .where((schedule) {
+          return schedule.isUpcoming() &&
+              (schedule.startDate.isAfter(today) &&
+                  schedule.startDate.isBefore(nextWeek));
+        })
+        .toList()
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+  }
+
+  List<Widget> _buildScheduleList(
+    List<Schedule> schedules, {
+    required bool isOngoingList,
+  }) {
+    if (schedules.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Text(
+            isOngoingList
+                ? 'Tidak ada kegiatan berlangsung hari ini.'
+                : 'Tidak ada kegiatan mendatang dalam 7 hari ke depan.',
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+      ];
+    }
+    return schedules
+        .map(
+          (schedule) {
+            print('Building ScheduleCard for: ${schedule.title} with ID: ${schedule.id}');
+            
+            return ScheduleCard(
+              schedule: schedule,
+              isOngoing: isOngoingList,
+              // PERBAIKAN: Lengkapi argumen yang diperlukan untuk DetailScheduleScreen
+              onTap: () async { 
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DetailScheduleScreen(
+                      schedule: schedule,
+                      isAdmin: isAdmin, // ARGUMEN DITAMBAHKAN
+                      onEdit: () {
+                        // Tidak perlu pop di sini, karena form akan pop sendiri
+                        _navigateToTambahKegiatanScreen(scheduleToEdit: schedule);
+                      },
+                      onDelete: (id) async { // Callback async
+                        await _deleteSchedule(id);
+                      },
+                    ),
+                  ),
+                );
+                // Setelah kembali dari DetailScheduleScreen, perbarui data.
+                if (result == true) {
+                  await _loadSchedules();
+                }
+              },
+              isAdmin: isAdmin,
+              onEdit: isAdmin
+                  ? () {
+                      if (schedule.id == null || schedule.id! <= 0) {
+                        print('ERROR: Edit button pressed for invalid ID: ${schedule.id}');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Jadwal ini tidak memiliki ID valid dan tidak bisa diedit.')),
+                        );
+                        return;
+                      }
+                      _navigateToTambahKegiatanScreen(scheduleToEdit: schedule);
+                    }
+                  : null,
+              onDelete: isAdmin
+                  ? () {
+                      if (schedule.id == null || schedule.id! <= 0) {
+                        print('ERROR: Delete button pressed for invalid ID: ${schedule.id}');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Jadwal ini tidak memiliki ID valid dan tidak bisa dihapus.')),
+                        );
+                        return;
+                      }
+                      _deleteSchedule(schedule.id);
+                    }
+                  : null,
+            );
+          },
+        )
+        .toList();
+  }
+
+  void _showSchedulesForDay(DateTime day) {
+    final schedules = _getSchedulesForDay(day);
+    if (schedules.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: Text(
+              'Kegiatan pada ${DateFormat('dd MMMMenderal').format(day)}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: schedules.length,
+                itemBuilder: (context, index) {
+                  final schedule = schedules[index];
+                  return ScheduleCard(
+                    schedule: schedule,
+                    isOngoing: schedule.isActive(),
+                    onTap: () async { // <-- JADIKAN ONTAP INI ASYNC
+                      Navigator.of(dialogContext).pop();
+                      // PANGGILAN KEDUA DI SINI
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DetailScheduleScreen(
+                            schedule: schedule,
+                            isAdmin: isAdmin, // ARGUMEN DITAMBAHKAN
+                            onEdit: () {
+                              _navigateToTambahKegiatanScreen(scheduleToEdit: schedule);
+                            },
+                            onDelete: (id) async { // Callback async
+                              await _deleteSchedule(id);
+                            },
+                          ),
+                        ),
+                      );
+                      if (result == true) {
+                        await _loadSchedules();
+                      }
+                    },
+                    isAdmin: isAdmin,
+                    onEdit: isAdmin
+                        ? () {
+                            if (schedule.id == null || schedule.id! <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Jadwal ini tidak memiliki ID valid dan tidak bisa diedit.')),
+                              );
+                              return;
+                            }
+                            Navigator.of(dialogContext).pop();
+                            _navigateToTambahKegiatanScreen(scheduleToEdit: schedule);
+                          }
+                        : null,
+                    onDelete: isAdmin
+                        ? () {
+                            if (schedule.id == null || schedule.id! <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Jadwal ini tidak memiliki ID valid dan tidak bisa dihapus.')),
+                              );
+                              return;
+                            }
+                            Navigator.of(dialogContext).pop();
+                            _deleteSchedule(schedule.id);
+                          }
+                        : null,
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(color: Color(0xFF1E8C7A)),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Tidak ada kegiatan pada ${DateFormat('dd MMMMenderal').format(day)}',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -68,139 +439,82 @@ class _JadwalScreenState extends State<JadwalScreen> {
       backgroundColor: const Color(0xFFD9E5D6),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E8C7A),
-        title: const Text('Jadwal Kegiatan'),
+        title: const Text(
+          'Jadwal Kegiatan',
+          style: TextStyle(color: Colors.white),
+        ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadAllData,
+          ),
+        ],
       ),
-      body: _isLoadingRole // Show loading indicator while checking role
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E8C7A)))
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Calendar Widget
-                  TableCalendar(
-                    firstDay: DateTime.utc(2020, 1, 1),
-                    lastDay: DateTime.utc(2030, 12, 31),
-                    focusedDay: _focusedDay,
-                    selectedDayPredicate: (day) {
-                      return isSameDay(_selectedDay, day);
-                    },
-                    calendarStyle: CalendarStyle(
-                      todayDecoration: const BoxDecoration(
-                        color: Color(0xFF1E8C7A),
-                        shape: BoxShape.circle,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF1E8C7A)),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadAllData,
+              color: const Color(0xFF1E8C7A),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Calendar Widget
+                    ScheduleCalendar(
+                      focusedDay: _focusedDay,
+                      selectedDay: _selectedDay,
+                      onDaySelected: (selectedDay, focusedDay) {
+                        setState(() {
+                          _selectedDay = selectedDay;
+                          _focusedDay = focusedDay;
+                        });
+                        _showSchedulesForDay(selectedDay);
+                      },
+                      eventLoader: _getSchedulesForDay,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Ongoing Activities Section
+                    ScheduleListSection(
+                      title: 'Kegiatan Berlangsung',
+                      icon: Icons.play_circle_fill,
+                      children: _buildScheduleList(
+                        _getOngoingSchedules(),
+                        isOngoingList: true,
                       ),
-                      selectedDecoration: const BoxDecoration(
-                        color: Colors.black87,
-                        shape: BoxShape.circle,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Upcoming Activities Section
+                    ScheduleListSection(
+                      title: 'Kegiatan Mendatang',
+                      icon: Icons.upcoming,
+                      children: _buildScheduleList(
+                        _getUpcomingSchedules(),
+                        isOngoingList: false,
                       ),
-                      markerDecoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.6),
-                        shape: BoxShape.circle,
-                      ),
                     ),
-                    headerStyle: const HeaderStyle(
-                      formatButtonVisible: false,
-                      titleCentered: true,
-                    ),
-                    onDaySelected: (selectedDay, focusedDay) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
-                      });
-                      _showActivitiesForDay(selectedDay);
-                    },
-                    calendarFormat: CalendarFormat.month,
-                    eventLoader: (day) {
-                      return _getEventsForDay(day);
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  // Section for Ongoing Activities
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F6EC),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Kegiatan Berlangsung',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        ..._getOngoingActivities(),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-      // **Floating Action Button (only visible if isAdmin is true)**
-      floatingActionButton: isAdmin // Only show FAB if user is admin
+      floatingActionButton: isAdmin
           ? FloatingActionButton(
-              onPressed: _navigateToTambahKegiatanScreen,
+              onPressed: () => _navigateToTambahKegiatanScreen(),
               backgroundColor: const Color(0xFF1E8C7A),
               foregroundColor: Colors.white,
               child: const Icon(Icons.add),
             )
-          : null, // If not admin, the FAB is null (not shown)
+          : null,
     );
-  }
-
-  // --- Helper Functions (unchanged) ---
-  List<String> _getEventsForDay(DateTime day) {
-    DateTime normalizedDay = DateTime.utc(day.year, day.month, day.day);
-    return _activities[normalizedDay] ?? [];
-  }
-
-  void _showActivitiesForDay(DateTime day) {
-    final events = _getEventsForDay(day);
-    if (events.isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text('Kegiatan pada ${day.day}/${day.month}/${day.year}'),
-            content: SingleChildScrollView(
-              child: ListBody(
-                children: events.map((event) => Text('- $event')).toList(),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-    }
-  }
-
-  List<Widget> _getOngoingActivities() {
-    final now = DateTime.now();
-    final today = DateTime.utc(now.year, now.month, now.day);
-    final todayActivities = _activities[today] ?? [];
-
-    if (todayActivities.isEmpty) {
-      return [const Text('Tidak ada kegiatan berlangsung hari ini.')];
-    }
-
-    return todayActivities.map((activity) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
-        child: Text('- $activity'),
-      );
-    }).toList();
   }
 }

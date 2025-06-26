@@ -1,6 +1,6 @@
 // lib/widget/notula/notula.dart
 import 'package:flutter/material.dart';
-import 'package:plan_ease/model/model.dart';
+import 'package:plan_ease/model/notula.dart';
 
 class NotulaListItem extends StatelessWidget {
   final Notula notula;

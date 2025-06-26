@@ -6,7 +6,8 @@ import 'package:plan_ease/page/schedule/schedule.dart';
 import 'package:plan_ease/widget/home/home.dart';
 import 'package:plan_ease/widget/component/appbar.dart';
 import 'package:plan_ease/widget/component/bottombar.dart';
-import 'package:plan_ease/service/api_service.dart';
+// PERBAIKAN: Ganti import ApiService lama dengan AuthService yang baru
+import 'package:plan_ease/service/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,8 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Variabel untuk menyimpan role pengguna
   String _userRole = '';
-  // Instance dari ApiService
-  final ApiService _apiService = ApiService();
+  // PERBAIKAN: Ganti instance ApiService dengan AuthService
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -55,7 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Fungsi untuk memuat role pengguna dari SharedPreferences
   Future<void> _loadUserRole() async {
-    String? role = await _apiService.getUserRole();
+    // PERBAIKAN: Panggil method dari AuthService
+    String? role = await _authService.getUserRole();
     setState(() {
       _userRole = role ?? ''; // Set role, default ke string kosong jika null
     });
