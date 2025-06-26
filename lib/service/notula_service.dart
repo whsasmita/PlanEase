@@ -1,4 +1,3 @@
-// lib/service/notula_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:plan_ease/model/notula.dart';
