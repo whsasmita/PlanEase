@@ -1,16 +1,15 @@
-// lib/service/auth_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:plan_ease/model/auth.dart';
-import 'package:plan_ease/model/profile.dart'; // Dibutuhkan untuk User model
+import 'package:plan_ease/model/profile.dart';
 import 'package:plan_ease/model/notula.dart';
 import 'package:plan_ease/model/schedule.dart';
 import 'package:plan_ease/model/polling.dart';
 
 
 class AuthService {
-  final String _apiBaseUrl = 'http://10.0.2.2:8000/api';
+  static const String apiBaseUrl = 'http://10.0.2.2:8000/api';
 
   Future<void> _saveAuthData(String token, String role) async {
     final prefs = await SharedPreferences.getInstance();
@@ -39,8 +38,6 @@ class AuthService {
     print('Data otentikasi dihapus.');
   }
 
-  // Helper method untuk mendapatkan header otentikasi
-  // Dibuat public agar bisa diakses oleh service lain
   Future<Map<String, String>> getAuthHeaders() async {
     final token = await getToken();
     if (token == null) {
@@ -56,7 +53,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final url = Uri.parse('$_apiBaseUrl/login');
+    final url = Uri.parse('$apiBaseUrl/login');
     print('Mencoba login ke: $url');
     print('Data login: $email, $password');
 
@@ -122,7 +119,8 @@ class AuthService {
     required String password,
     required String passwordConfirmation,
   }) async {
-    final url = Uri.parse('$_apiBaseUrl/register');
+    // PERBAIKAN: Gunakan apiBaseUrl yang static
+    final url = Uri.parse('$apiBaseUrl/register');
     print('Mencoba daftar ke: $url');
     print('Data daftar: $fullName, $email, $phone, $password, $passwordConfirmation');
 
@@ -151,7 +149,7 @@ class AuthService {
       final responseBody = json.decode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return null; // Pendaftaran Sukses
+        return null; 
       } else {
         if (responseBody.containsKey('errors')) {
           String errorMessage = '';
@@ -175,7 +173,8 @@ class AuthService {
   }
 
   Future<String?> recoverPassword(String email) async {
-    final url = Uri.parse('$_apiBaseUrl/forgot-password');
+    // PERBAIKAN: Gunakan apiBaseUrl yang static
+    final url = Uri.parse('$apiBaseUrl/forgot-password');
     print('Mencoba pulihkan password untuk: $email');
 
     try {

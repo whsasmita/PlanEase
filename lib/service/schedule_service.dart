@@ -2,23 +2,20 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:plan_ease/model/schedule.dart';
-import 'package:plan_ease/service/auth_service.dart'; // Import AuthService
+import 'package:plan_ease/service/auth_service.dart'; 
 
 class ScheduleService {
-  final String _apiBaseUrl = 'http://10.0.2.2:8000/api';
-  final AuthService _authService; // Dependency on AuthService
+  final AuthService _authService; 
 
   ScheduleService(this._authService);
 
   Future<List<Schedule>> getSchedules() async {
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/schedule');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/schedule');
     print('Mencoba mengambil schedules dari: $url');
 
     try {
       final response = await http.get(url, headers: headers);
-      print('Get Schedules Status Code: ${response.statusCode}');
-      print('Get Schedules Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
@@ -56,7 +53,7 @@ class ScheduleService {
 
   Future<Schedule> addSchedule(Schedule schedule) async {
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/schedule');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/schedule');
     print('Mencoba menambahkan schedule ke: $url');
     print('Data: ${json.encode(schedule.toJson())}');
 
@@ -66,9 +63,6 @@ class ScheduleService {
         headers: headers,
         body: json.encode(schedule.toJson()),
       );
-
-      print('Add Schedule Status Code: ${response.statusCode}');
-      print('Add Schedule Response Body: ${response.body}');
 
       if (response.statusCode == 201) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
@@ -110,7 +104,7 @@ class ScheduleService {
     }
 
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/schedule/${schedule.id}');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/schedule/${schedule.id}');
     print('Mencoba memperbarui schedule di: $url');
     print('Data yang dikirim untuk update: ${json.encode(schedule.toJson())}');
 
@@ -168,7 +162,7 @@ class ScheduleService {
     }
 
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/schedule/$scheduleId');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/schedule/$scheduleId');
     print('Mencoba menghapus schedule dengan ID: $scheduleId dari: $url');
 
     try {
@@ -224,7 +218,7 @@ class ScheduleService {
 
   Future<Schedule> getScheduleById(int scheduleId) async {
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/schedule/$scheduleId');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/schedule/$scheduleId');
     print('Mencoba mengambil schedule dengan ID: $scheduleId dari: $url');
 
     try {

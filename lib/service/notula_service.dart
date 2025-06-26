@@ -2,24 +2,23 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:plan_ease/model/notula.dart';
-import 'package:plan_ease/service/auth_service.dart'; // Import AuthService
+import 'package:plan_ease/service/auth_service.dart';
 
 class NotulaService {
-  final String _apiBaseUrl = 'http://10.0.2.2:8000/api';
-  final AuthService _authService; // Dependency on AuthService
+  final AuthService _authService;
 
   NotulaService(this._authService);
 
   Future<List<Notula>> getNotula() async {
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/notula');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/notula');
     print('Mencoba mengambil notula dari: $url');
 
     try {
       final response = await http.get(url, headers: headers);
       print('Get Notula Status Code: ${response.statusCode}');
       print('Get Notula Response Body: ${response.body}');
-
+      
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = json.decode(response.body);
         if (responseBody.containsKey('data') && responseBody['data'] is List) {
@@ -56,7 +55,7 @@ class NotulaService {
 
   Future<Notula> addNotula(Notula notula) async {
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/notula');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/notula');
     print('Mencoba menambahkan notula ke: $url');
     print('Data: ${json.encode(notula.toJson())}');
 
@@ -108,7 +107,7 @@ class NotulaService {
       throw Exception('ID Notula diperlukan untuk operasi pembaruan.');
     }
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/notula/${notula.id}');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/notula/${notula.id}');
     print('Mencoba memperbarui notula di: $url');
     print('Data: ${json.encode(notula.toJson())}');
 
@@ -161,7 +160,7 @@ class NotulaService {
 
   Future<void> deleteNotula(String notulaId) async {
     final headers = await _authService.getAuthHeaders();
-    final url = Uri.parse('$_apiBaseUrl/notula/$notulaId');
+    final url = Uri.parse('${AuthService.apiBaseUrl}/notula/$notulaId');
     print('Mencoba menghapus notula dengan ID: $notulaId dari: $url');
 
     try {

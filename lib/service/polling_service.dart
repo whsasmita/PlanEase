@@ -3,7 +3,6 @@ import 'package:plan_ease/model/polling.dart';
 import 'package:plan_ease/service/auth_service.dart';
 
 class PollingService {
-  final String _apiBaseUrl = 'http://10.0.2.2:8000/api';
   final AuthService _authService;
 
   PollingService(this._authService);
