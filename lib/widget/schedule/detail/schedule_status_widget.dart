@@ -16,7 +16,7 @@ class ScheduleStatusWidget extends StatelessWidget {
     if (schedule.isPast()) {
       return StatusChip(text: 'Selesai', color: Colors.redAccent);
     } else if (schedule.isActive()) {
-      return StatusChip(text: 'Aktif', color: Colors.green);
+      return StatusChip(text: 'Berlangsung', color: Colors.green);
     } else if (schedule.isUpcoming()) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

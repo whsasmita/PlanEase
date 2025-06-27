@@ -64,7 +64,7 @@ class ScheduleCard extends StatelessWidget {
                 if (schedule.isPast()) ...[
                   _buildStatusChip('Selesai', Colors.redAccent),
                 ] else if (schedule.isActive()) ...[
-                  _buildStatusChip('Aktif', Colors.green),
+                  _buildStatusChip('Berlangsung', Colors.green),
                 ] else if (schedule.isUpcoming()) ...[
                   Text(
                     '${schedule.getDaysUntilStart()} hari lagi',
