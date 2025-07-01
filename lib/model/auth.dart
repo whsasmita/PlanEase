@@ -5,7 +5,7 @@ class User {
   final String fullName;
   final String email;
   final String? emailVerifiedAt;
-  final String? phone; 
+  final String? phone;
   final String role;
 
   User({
@@ -18,8 +18,26 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    print('DEBUG User.fromJson: JSON data received: $json');
+    final dynamic idFromApi = json['id_user'];
+    int? parsedId;
+
+    print(
+      'DEBUG User.fromJson: Value of id_user from JSON: $idFromApi',
+    );
+
+    if (idFromApi is int) {
+      parsedId = idFromApi;
+    } else if (idFromApi is String) {
+      parsedId = int.tryParse(idFromApi);
+    }
+
+    parsedId ??= 0;
+
+    print('DEBUG User.fromJson: Final parsedId: $parsedId');
+
     return User(
-      id: json['id_user'] as int? ?? 0, // Assuming 'id_user' from PHP model
+      id: parsedId,
       fullName: json['full_name'] as String? ?? '',
       email: json['email'] as String? ?? '',
       emailVerifiedAt: json['email_verified_at'] as String?,
@@ -40,7 +58,6 @@ class User {
   }
 }
 
-// LoginApiResponse Model
 class LoginApiResponse {
   final String message;
   final User? user;

@@ -2,22 +2,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:plan_ease/model/auth.dart';
-import 'package:plan_ease/model/profile.dart';
-import 'package:plan_ease/model/notula.dart';
-import 'package:plan_ease/model/schedule.dart';
-import 'package:plan_ease/model/polling.dart';
-
 
 class AuthService {
   static const String apiBaseUrl = 'http://10.0.2.2:8000/api';
 
-  Future<void> _saveAuthData(String token, String role) async {
+  Future<void> _saveAuthData(String token, String role, int userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('authToken', token);
     await prefs.setString('userRole', role);
+    await prefs.setInt('userId', userId);
     await prefs.setBool('is_logged_in', true);
     print('Token disimpan: $token');
     print('Role disimpan: $role');
+    print('User ID disimpan: $userId');
   }
 
   Future<String?> getToken() async {
@@ -34,8 +31,16 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
     await prefs.remove('userRole');
+    await prefs.remove('userId');
     await prefs.setBool('is_logged_in', false);
     print('Data otentikasi dihapus.');
+  }
+
+  Future<int?> getCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('userId');
+    print('DEBUG: User ID from SharedPreferences: $userId');
+    return userId;
   }
 
   Future<Map<String, String>> getAuthHeaders() async {
@@ -84,6 +89,7 @@ class AuthService {
         await _saveAuthData(
           loginApiResponse.accessToken!,
           loginApiResponse.user!.role,
+          loginApiResponse.user!.id,
         );
         return loginApiResponse;
       } else {
@@ -122,7 +128,9 @@ class AuthService {
     // PERBAIKAN: Gunakan apiBaseUrl yang static
     final url = Uri.parse('$apiBaseUrl/register');
     print('Mencoba daftar ke: $url');
-    print('Data daftar: $fullName, $email, $phone, $password, $passwordConfirmation');
+    print(
+      'Data daftar: $fullName, $email, $phone, $password, $passwordConfirmation',
+    );
 
     try {
       final response = await http.post(
@@ -149,7 +157,7 @@ class AuthService {
       final responseBody = json.decode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return null; 
+        return null;
       } else {
         if (responseBody.containsKey('errors')) {
           String errorMessage = '';

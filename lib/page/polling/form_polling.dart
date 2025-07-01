@@ -1,5 +1,12 @@
+// page/polling/form_polling.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Import for date formatting
+import 'dart:io'; // Untuk File
+import 'package:image_picker/image_picker.dart'; // Untuk ImagePicker
+
+import 'package:plan_ease/service/auth_service.dart';
+import 'package:plan_ease/service/polling_service.dart';
+import 'package:plan_ease/model/polling.dart' as PollingModel; // Alias untuk PollingOption
 
 // Enum untuk memudahkan pengelolaan jenis polling
 enum PollingType {
@@ -19,19 +26,30 @@ class CreatePollingScreen extends StatefulWidget {
 class _CreatePollingScreenState extends State<CreatePollingScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController(); // Untuk deskripsi
+  final TextEditingController _deadlineController = TextEditingController(); // Untuk deadline
+  DateTime? _selectedDeadline; // Untuk menyimpan objek DateTime deadline
 
   PollingType? _selectedPollingType; // State untuk dropdown jenis polling
 
   // Lists untuk mengelola input dinamis
   final List<TextEditingController> _temaControllers = [];
-  final List<String?> _bajuFileNames = []; // Untuk menyimpan nama file baju
+  final List<File?> _bajuImageFiles = []; // Untuk menyimpan File gambar baju
   final List<TextEditingController> _jadwalDateControllers = [];
   final List<DateTime?> _jadwalSelectedDates = [];
   final List<TextEditingController> _lainnyaControllers = [];
 
+  File? _pickedImage; // Untuk gambar polling utama
+  bool _isLoading = false; // State untuk indikator loading saat submit
+
+  late final AuthService _authService;
+  late final PollingService _pollingService;
+
   @override
   void initState() {
     super.initState();
+    _authService = AuthService();
+    _pollingService = PollingService(_authService);
     // Inisialisasi satu field untuk setiap jenis secara default jika diperlukan
     // _addTemaField(); // Contoh: langsung munculkan 1 field tema
   }
@@ -39,9 +57,12 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
+    _deadlineController.dispose();
     for (var controller in _temaControllers) {
       controller.dispose();
     }
+    // _bajuImageFiles tidak perlu dispose controller
     for (var controller in _jadwalDateControllers) {
       controller.dispose();
     }
@@ -61,10 +82,10 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
 
   void _addBajuField() {
     setState(() {
-      _bajuFileNames.add(null); // Tambahkan placeholder untuk upload
-      // Simulasi pick file jika ingin langsung muncul dialog pickernya
-      // _pickFile(context, _bajuFileNames.length - 1);
+      _bajuImageFiles.add(null); // Tambahkan placeholder untuk upload
     });
+    // Panggil _pickFile secara otomatis setelah menambahkan field jika diinginkan
+    // _pickFileForOption(_bajuImageFiles.length - 1);
   }
 
   void _addJadwalField() {
@@ -80,7 +101,33 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
     });
   }
 
-  // --- Fungsi untuk memilih tanggal ---
+  // --- Fungsi untuk memilih tanggal deadline polling utama ---
+  Future<void> _selectDeadlineDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDeadline ?? DateTime.now().add(const Duration(days: 1)), // Default besok
+      firstDate: DateTime.now(), // Tidak bisa memilih tanggal di masa lalu
+      lastDate: DateTime(2101),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: const Color(0xFF1E8C7A),
+            colorScheme: const ColorScheme.light(primary: Color(0xFF1E8C7A)),
+            buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDeadline = picked;
+        _deadlineController.text = DateFormat('yyyy-MM-dd').format(picked); // Format sesuai API Laravel
+      });
+    }
+  }
+
+  // --- Fungsi untuk memilih tanggal opsi jadwal kegiatan ---
   Future<void> _selectJadwalDate(BuildContext context, int index) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -106,70 +153,142 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
     }
   }
 
-  // --- Fungsi untuk simulasi upload file (perlu package file_picker/image_picker untuk real) ---
-  void _pickFile(BuildContext context, int index) async {
-    // Implementasi real memerlukan package seperti:
-    // import 'package:file_picker/file_picker.dart';
-    // FilePickerResult? result = await FilePicker.platform.pickFiles();
-    // if (result != null) {
-    //   setState(() {
-    //     _bajuFileNames[index] = result.files.first.name;
-    //   });
-    // } else {
-    //   // User canceled the picker
-    // }
+  // --- Fungsi untuk memilih gambar polling utama ---
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    // Simulasi:
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Simulasi: Dialog upload file muncul...')),
-    );
-    await Future.delayed(const Duration(seconds: 1)); // Simulasi delay
-    setState(() {
-      _bajuFileNames[index] = 'baju_${index + 1}_uploaded.png';
-    });
+    if (pickedFile != null) {
+      setState(() {
+        _pickedImage = File(pickedFile.path);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gambar utama dipilih: ${pickedFile.name}')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pemilihan gambar dibatalkan.')),
+      );
+    }
   }
 
+  // --- Fungsi untuk memilih gambar opsi baju ---
+  Future<void> _pickImageForOption(int index) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _bajuImageFiles[index] = File(pickedFile.path);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gambar baju ${index + 1} dipilih: ${pickedFile.name}')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pemilihan gambar baju dibatalkan.')),
+      );
+    }
+  }
+
+
   // --- Fungsi untuk membuat polling ---
-  void _createPolling() {
+  void _createPolling() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      String title = _titleController.text;
-      print('Judul Polling: $title');
-      print('Jenis Polling: ${_selectedPollingType?.name}');
+      setState(() {
+        _isLoading = true; // Mulai loading
+      });
 
+      String title = _titleController.text;
+      String description = _descriptionController.text;
+      String deadline = _selectedDeadline!.toIso8601String(); // Format ke ISO 8601 string untuk API
+
+      List<Map<String, String>> options = [];
+      String? pollingImageFilename; // Untuk polling_image di API (nama file)
+
+      // Mengumpulkan opsi berdasarkan jenis polling yang dipilih
       switch (_selectedPollingType) {
         case PollingType.tema:
-          for (int i = 0; i < _temaControllers.length; i++) {
-            print('Tema ${i + 1}: ${_temaControllers[i].text}');
+          for (var controller in _temaControllers) {
+            options.add({'option': controller.text});
           }
           break;
         case PollingType.baju:
-          for (int i = 0; i < _bajuFileNames.length; i++) {
-            print('Baju ${i + 1} File: ${_bajuFileNames[i] ?? "Belum diupload"}');
+          for (int i = 0; i < _bajuImageFiles.length; i++) {
+            if (_bajuImageFiles[i] != null) {
+              // Untuk opsi baju, kita akan mengirim nama file atau path sementara
+              // API Laravel Anda menerima 'option' sebagai string.
+              // Jika Anda ingin menyimpan path gambar untuk setiap opsi baju,
+              // Anda perlu menyesuaikan model PollingOption di Laravel.
+              // Untuk saat ini, kita akan mengirim nama file sebagai 'option'.
+              options.add({'option': _bajuImageFiles[i]!.path.split('/').last}); // Mengambil nama file
+            }
           }
+          // Jika Anda ingin mengunggah gambar baju sebagai bagian dari opsi,
+          // ini akan menjadi implementasi yang lebih kompleks (misal, multiple file upload)
+          // Untuk saat ini, kita hanya mengirim nama file.
           break;
         case PollingType.jadwalKegiatan:
           for (int i = 0; i < _jadwalSelectedDates.length; i++) {
-            print('Jadwal ${i + 1}: ${_jadwalSelectedDates[i] != null ? DateFormat('dd/MM/yyyy').format(_jadwalSelectedDates[i]!) : "Belum dipilih"}');
+            if (_jadwalSelectedDates[i] != null) {
+              options.add({'option': DateFormat('yyyy-MM-dd').format(_jadwalSelectedDates[i]!)});
+            }
           }
           break;
         case PollingType.lainnya:
-          for (int i = 0; i < _lainnyaControllers.length; i++) {
-            print('Pilihan Lainnya ${i + 1}: ${_lainnyaControllers[i].text}');
+          for (var controller in _lainnyaControllers) {
+            options.add({'option': controller.text});
           }
           break;
         case null:
-          // Should not happen if dropdown is validated
+          // Validasi harusnya sudah menangani ini
           break;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Polling berhasil dibuat! Data dicetak di konsol.')),
-      );
+      // Pastikan ada minimal 2 opsi
+      if (options.length < 2) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Harap tambahkan minimal 2 opsi polling.')),
+        );
+        return;
+      }
 
-      // Kembali ke halaman sebelumnya
-      Navigator.pop(context);
+      Map<String, dynamic> pollingData = {
+        'title': title,
+        'description': description,
+        'deadline': deadline,
+        'options': options,
+      };
+
+      try {
+        final newPolling = await _pollingService.createPolling(
+          pollingData,
+          imageFile: _pickedImage, // Kirim gambar polling utama
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Polling "${newPolling.title}" berhasil dibuat!')),
+          );
+          Navigator.pop(context, true); // Kembali ke halaman sebelumnya dan beri sinyal refresh
+        }
+      } catch (e) {
+        print('Error creating polling: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal membuat polling: ${e.toString().replaceFirst('Exception: ', '')}')),
+          );
+        }
+      } finally {
+        setState(() {
+          _isLoading = false; // Hentikan loading
+        });
+      }
     }
   }
 
@@ -209,6 +328,78 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 15),
+
+              // Deskripsi Polling
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Deskripsi (Opsional)',
+                  hintText: 'Misal: Membahas agenda rapat bulanan',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.description, color: Color(0xFF1E8C7A)),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // Deadline Polling
+              TextFormField(
+                controller: _deadlineController,
+                readOnly: true,
+                onTap: () => _selectDeadlineDate(context),
+                decoration: InputDecoration(
+                  labelText: 'Deadline Polling',
+                  hintText: 'Pilih tanggal dan waktu berakhir polling',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFF1E8C7A)),
+                  suffixIcon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E8C7A)),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Deadline polling tidak boleh kosong';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 15),
+
+              // Upload Gambar Polling Utama
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.image, color: _pickedImage != null ? Colors.green : Colors.grey),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _pickedImage != null ? _pickedImage!.path.split('/').last : 'Upload Gambar Polling (Opsional)',
+                          style: TextStyle(
+                            color: _pickedImage != null ? Colors.black87 : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      if (_pickedImage != null) const Icon(Icons.check_circle, color: Colors.green),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
 
               // Dropdown Jenis Polling
@@ -247,7 +438,7 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
                     _selectedPollingType = newValue;
                     // Reset semua field dinamis saat jenis polling berubah
                     _temaControllers.clear();
-                    _bajuFileNames.clear();
+                    _bajuImageFiles.clear();
                     _jadwalDateControllers.clear();
                     _jadwalSelectedDates.clear();
                     _lainnyaControllers.clear();
@@ -320,12 +511,12 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _bajuFileNames.length,
+                  itemCount: _bajuImageFiles.length,
                   itemBuilder: (context, index) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10.0),
                       child: GestureDetector(
-                        onTap: () => _pickFile(context, index),
+                        onTap: () => _pickImageForOption(index),
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -335,17 +526,17 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.upload_file, color: _bajuFileNames[index] != null ? Colors.green : Colors.grey),
+                              Icon(Icons.upload_file, color: _bajuImageFiles[index] != null ? Colors.green : Colors.grey),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  _bajuFileNames[index] ?? 'Upload Baju ${index + 1} (Tap untuk memilih)',
+                                  _bajuImageFiles[index] != null ? _bajuImageFiles[index]!.path.split('/').last : 'Upload Baju ${index + 1} (Tap untuk memilih)',
                                   style: TextStyle(
-                                    color: _bajuFileNames[index] != null ? Colors.black87 : Colors.grey[600],
+                                    color: _bajuImageFiles[index] != null ? Colors.black87 : Colors.grey[600],
                                   ),
                                 ),
                               ),
-                              if (_bajuFileNames[index] != null) const Icon(Icons.check_circle, color: Colors.green),
+                              if (_bajuImageFiles[index] != null) const Icon(Icons.check_circle, color: Colors.green),
                             ],
                           ),
                         ),
@@ -469,7 +660,7 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _createPolling,
+                  onPressed: _isLoading ? null : _createPolling, // Nonaktifkan tombol saat loading
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1E8C7A),
                     foregroundColor: Colors.white,
@@ -478,10 +669,12 @@ class _CreatePollingScreenState extends State<CreatePollingScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: const Text(
-                    'Buat Polling',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white) // Tampilkan loading
+                      : const Text(
+                          'Buat Polling',
+                          style: TextStyle(fontSize: 18),
+                        ),
                 ),
               ),
             ],

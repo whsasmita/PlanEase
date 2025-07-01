@@ -9,7 +9,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return PageRouteBuilder(
       pageBuilder: (_, __, ___) => page,
       transitionsBuilder: (_, animation, __, child) {
-        const begin = Offset(0.0, 1.0); // slide from bottom
+        const begin = Offset(0.0, 1.0);
         const end = Offset.zero;
         const curve = Curves.easeInOut;
 
@@ -36,7 +36,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Background lengkung hijau
           Container(
             height: 150,
             decoration: const BoxDecoration(
@@ -63,7 +62,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     backgroundImage: AssetImage('assets/images/user.jpg'),
                   ),
                 ),
-
                 // Judul tengah
                 const Expanded(
                   child: Center(

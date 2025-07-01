@@ -7,6 +7,7 @@ class MenuIcon extends StatelessWidget {
   final VoidCallback onTap;
 
   const MenuIcon({
+    super.key, // Tambahkan super.key
     required this.icon,
     required this.label,
     required this.onTap,
@@ -33,9 +34,15 @@ class MenuIcon extends StatelessWidget {
 
 class SectionCard extends StatelessWidget {
   final String title;
-  final List<String> items;
+  final List<String> items; // Tetap List<String> untuk kesederhanaan
+  final bool isLoading; // New: untuk menunjukkan status loading
 
-  const SectionCard({required this.title, required this.items});
+  const SectionCard({
+    super.key, // Tambahkan super.key
+    required this.title,
+    required this.items,
+    this.isLoading = false, // Default false
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -54,18 +61,25 @@ class SectionCard extends StatelessWidget {
                 fontSize: 16,
               )),
           const SizedBox(height: 12),
-          ...items.map((e) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text('• $e'),
-              )),
-          if (items.isEmpty)
-            const Text(
-              'Belum ada data.',
-              style: TextStyle(color: Colors.grey),
-            ),
+          isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF1E8C7A))) // Tampilkan loading
+              : items.isEmpty
+                  ? const Text(
+                      'Belum ada data.',
+                      style: TextStyle(color: Colors.grey),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: items
+                          .map((e) => Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Text('• $e'),
+                              ))
+                          .toList(),
+                    ),
         ],
       ),
     );
   }
 }
-
