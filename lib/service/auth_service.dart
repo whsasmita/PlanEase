@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:plan_ease/model/auth.dart';
 
 class AuthService {
-  static const String apiBaseUrl = 'http://10.0.2.2:8000/api';
+  static const String apiBaseUrl = 'https://bd116ed77d53.ngrok-free.app/api';
 
   Future<void> _saveAuthData(String token, String role, int userId) async {
     final prefs = await SharedPreferences.getInstance();

@@ -4,13 +4,15 @@ import 'package:plan_ease/page/notula/notula.dart';
 import 'package:plan_ease/page/polling/polling.dart';
 import 'package:plan_ease/page/schedule/schedule.dart';
 import 'package:plan_ease/widget/home/home.dart';
-import 'package:plan_ease/widget/component/appbar.dart'; 
-import 'package:plan_ease/widget/component/bottombar.dart'; 
+import 'package:plan_ease/widget/component/appbar.dart';
+import 'package:plan_ease/widget/component/bottombar.dart';
 import 'package:plan_ease/service/auth_service.dart';
 import 'package:plan_ease/service/polling_service.dart';
-import 'package:plan_ease/service/schedule_service.dart'; 
-import 'package:plan_ease/model/polling.dart' as PollingModel; 
+import 'package:plan_ease/service/schedule_service.dart';
+import 'package:plan_ease/service/profile_service.dart'; // Import ProfileService
+import 'package:plan_ease/model/polling.dart' as PollingModel;
 import 'package:plan_ease/model/schedule.dart' as ScheduleModel;
+import 'package:plan_ease/model/profile.dart'; // Import Profile model
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -79,9 +81,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }).toList();
 
   String _userRole = '';
-  late final AuthService _authService; // Menggunakan late final
-  late final PollingService _pollingService; // Inisialisasi PollingService
-  late final ScheduleService _scheduleService; // Inisialisasi ScheduleService
+  late final AuthService _authService;
+  late final PollingService _pollingService;
+  late final ScheduleService _scheduleService;
+  late final ProfileService _profileService; // Declare ProfileService
+  Profile? _userProfile; // Declare _userProfile to store profile data
 
   // State untuk data terbaru
   List<PollingModel.Polling> _recentPollings = [];
@@ -93,18 +97,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 1);
-    _authService = AuthService(); // Inisialisasi AuthService
-    _pollingService = PollingService(_authService); // Lewatkan AuthService
-    _scheduleService = ScheduleService(_authService); // Lewatkan AuthService
+    _authService = AuthService();
+    _pollingService = PollingService(_authService);
+    _scheduleService = ScheduleService(_authService);
+    _profileService = ProfileService(_authService); // Initialize ProfileService
 
-    _loadUserDataAndRecentItems(); // Panggil fungsi untuk memuat semua data
+    _loadUserDataAndRecentItems();
   }
 
-  // Fungsi untuk memuat role pengguna dan item terbaru
+  // Fungsi untuk memuat role pengguna, item terbaru, dan profil pengguna
   Future<void> _loadUserDataAndRecentItems() async {
     await _loadUserRole();
     await _fetchRecentPollings();
     await _fetchRecentSchedules();
+    await _fetchUserProfile(); // Call to fetch user profile
   }
 
   // Fungsi untuk memuat role pengguna dari AuthService
@@ -115,19 +121,45 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // CORRECTED: Function to fetch user profile
+  Future<void> _fetchUserProfile() async {
+    try {
+      // Assuming _authService.getCurrentUserId() returns Future<int?>
+      final int? userId = await _authService.getCurrentUserId();
+
+      if (userId != null) {
+        // Pass the int userId directly to getProfileUser
+        final profile = await _profileService.getProfileUser(userId);
+        setState(() {
+          _userProfile = profile;
+        });
+      } else {
+        // Handle the case where userId is null (e.g., user not logged in)
+        print('User ID is null. Cannot fetch profile.');
+        // Optionally, set _userProfile to a default/empty profile or show a message
+      }
+    } catch (e) {
+      print('Error fetching user profile for AppBar: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat profil pengguna: ${e.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+    }
+  }
+
   // Fungsi untuk mengambil 3 polling terbaru
   Future<void> _fetchRecentPollings() async {
     setState(() {
       _isLoadingRecentPollings = true;
     });
     try {
-      final pollings = await _pollingService.getPollings(); // Mengambil daftar polling
+      final pollings = await _pollingService.getPollings();
       setState(() {
-        _recentPollings = pollings.take(3).toList(); // Ambil 3 item pertama
+        _recentPollings = pollings.take(3).toList();
       });
     } catch (e) {
       print('Error fetching recent pollings: $e');
-      // Tampilkan SnackBar jika perlu
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal memuat polling terbaru: ${e.toString().replaceFirst('Exception: ', '')}')),
@@ -146,18 +178,17 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoadingRecentSchedules = true;
     });
     try {
-      final schedules = await _scheduleService.getSchedules(); // Mengambil daftar jadwal
+      final schedules = await _scheduleService.getSchedules();
       setState(() {
-        _recentSchedules = schedules.take(3).toList(); // Ambil 3 item pertama
+        _recentSchedules = schedules.take(3).toList();
       });
     } catch (e) {
       print('Error fetching recent schedules: $e');
-      // Tampilkan SnackBar jika perlu
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal memuat jadwal terbaru: ${e.toString().replaceFirst('Exception: ', '')}')),
         );
-      }
+        }
     } finally {
       setState(() {
         _isLoadingRecentSchedules = false;
@@ -255,7 +286,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD9E5D6),
-      appBar: const CustomAppBar(),
+      // Pass the fetched _userProfile to CustomAppBar
+      appBar: CustomAppBar(userProfile: _userProfile),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
@@ -295,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        _createFancyRoute(const JadwalScreen()), // Asumsi JadwalScreen ada
+                        _createFancyRoute(const JadwalScreen()),
                       );
                     },
                   ),
@@ -307,14 +339,14 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             SectionCard(
               title: 'Polling berjalan',
-              items: _recentPollings.map((p) => p.title).toList(), // Ambil judul polling
-              isLoading: _isLoadingRecentPollings, // Teruskan status loading
+              items: _recentPollings.map((p) => p.title).toList(),
+              isLoading: _isLoadingRecentPollings,
             ),
             const SizedBox(height: 12),
             SectionCard(
               title: 'Kegiatan terbaru',
-              items: _recentSchedules.map((s) => s.title).toList(), // Ambil judul jadwal (asumsi ada title)
-              isLoading: _isLoadingRecentSchedules, // Teruskan status loading
+              items: _recentSchedules.map((s) => s.title).toList(),
+              isLoading: _isLoadingRecentSchedules,
             ),
           ],
         ),

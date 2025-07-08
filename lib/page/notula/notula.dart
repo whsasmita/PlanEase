@@ -15,21 +15,56 @@ class NotulaScreen extends StatefulWidget {
 
 class _NotulaScreenState extends State<NotulaScreen> {
   List<Notula> _daftarNotula = [];
+  List<Notula> _filteredNotula = []; // New list for filtered results
   bool _isLoading = true;
   String? _errorMessage;
 
   bool isAdmin = false;
-  // PERBAIKAN: Ganti ApiService dengan AuthService dan NotulaService
   late final AuthService _authService;
   late final NotulaService _notulaService;
+
+  // New: TextEditingController for the search input
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = ''; // New: State variable to hold the search query
 
   @override
   void initState() {
     super.initState();
-    // Inisialisasi service di initState
     _authService = AuthService();
     _notulaService = NotulaService(_authService);
     _checkUserRoleAndFetchNotula();
+
+    // New: Add listener to search controller to filter notes
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // New: Method to handle changes in the search input
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _filterNotula();
+    });
+  }
+
+  // New: Method to filter the notula list based on search query
+  void _filterNotula() {
+    if (_searchQuery.isEmpty) {
+      _filteredNotula = List.from(_daftarNotula);
+    } else {
+      _filteredNotula = _daftarNotula.where((notula) {
+        final query = _searchQuery.toLowerCase();
+        // You can customize which fields to search here
+        return notula.title.toLowerCase().contains(query) ||
+            notula.content.toLowerCase().contains(query);
+      }).toList();
+    }
   }
 
   Future<void> _checkUserRoleAndFetchNotula() async {
@@ -39,17 +74,16 @@ class _NotulaScreenState extends State<NotulaScreen> {
     });
 
     try {
-      // PERBAIKAN: Panggil method dari _authService
       String? role = await _authService.getUserRole();
       setState(() {
         isAdmin = (role == 'ADMIN');
       });
       print('NotulaScreen: User role is $role, isAdmin is $isAdmin');
 
-      // PERBAIKAN: Panggil method dari _notulaService
       List<Notula> fetchedNotula = await _notulaService.getNotula();
       setState(() {
         _daftarNotula = fetchedNotula;
+        _filterNotula(); // Filter after fetching data
       });
     } catch (e) {
       print('Error fetching data in NotulaScreen: $e');
@@ -69,14 +103,12 @@ class _NotulaScreenState extends State<NotulaScreen> {
 
   Future<void> _editNotula(Notula updatedNotula) async {
     try {
-      // PERBAIKAN: Panggil method dari _notulaService
       await _notulaService.updateNotula(updatedNotula);
-      // Anda mungkin tidak perlu setState di sini jika _checkUserRoleAndFetchNotula() akan dipanggil lagi
-      // atau jika Anda ingin update UI secara instan tanpa fetch ulang.
       setState(() {
         final index = _daftarNotula.indexWhere((n) => n.id == updatedNotula.id);
         if (index != -1) {
           _daftarNotula[index] = updatedNotula;
+          _filterNotula(); // Re-filter after update
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,8 +121,8 @@ class _NotulaScreenState extends State<NotulaScreen> {
     }
   }
 
-  Future<void> _deleteNotula(String? notulaId) async { // Ubah tipe menjadi String?
-    if (notulaId == null || notulaId.isEmpty) { // Tambahkan pengecekan ID null/empty
+  Future<void> _deleteNotula(String? notulaId) async {
+    if (notulaId == null || notulaId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ID Notula tidak valid untuk penghapusan.')),
       );
@@ -123,11 +155,11 @@ class _NotulaScreenState extends State<NotulaScreen> {
         _isLoading = true;
       });
       try {
-        // PERBAIKAN: Panggil method dari _notulaService
-        await _notulaService.deleteNotula(notulaId); // notulaId dijamin tidak null di sini
+        await _notulaService.deleteNotula(notulaId);
 
         setState(() {
           _daftarNotula.removeWhere((notula) => notula.id == notulaId);
+          _filterNotula(); // Re-filter after deletion
           _isLoading = false;
         });
 
@@ -172,8 +204,18 @@ class _NotulaScreenState extends State<NotulaScreen> {
       backgroundColor: const Color(0xFFD9E5D6),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E8C7A),
-        title: const Text('Notula'),
-        centerTitle: true,
+        title: TextField( // New: Search bar in AppBar
+          controller: _searchController,
+          decoration: const InputDecoration(
+            hintText: 'Cari notula...',
+            hintStyle: TextStyle(color: Colors.white70),
+            border: InputBorder.none,
+            prefixIcon: Icon(Icons.search, color: Colors.white),
+          ),
+          style: const TextStyle(color: Colors.white),
+          cursorColor: Colors.white,
+        ),
+        centerTitle: false, // Changed to false to accommodate TextField
         foregroundColor: Colors.white,
       ),
       body: _isLoading
@@ -202,34 +244,34 @@ class _NotulaScreenState extends State<NotulaScreen> {
                     ),
                   ),
                 )
-              : _daftarNotula.isEmpty
-                  ? Center(
+              : _filteredNotula.isEmpty
+                  ? Center( // Display message if no notes or no search results
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text(
-                            'Belum ada notula.',
-                            style: TextStyle(fontSize: 18, color: Colors.grey),
+                          Text(
+                            _searchQuery.isEmpty ? 'Belum ada notula.' : 'Tidak ada notula yang ditemukan.',
+                            style: const TextStyle(fontSize: 18, color: Colors.grey),
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            'Anda bisa menambahkan notula baru.',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                            textAlign: TextAlign.center,
-                          ),
+                          if (_searchQuery.isEmpty)
+                            Text(
+                              'Anda bisa menambahkan notula baru.',
+                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                              textAlign: TextAlign.center,
+                            ),
                         ],
                       ),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.all(8.0),
-                      itemCount: _daftarNotula.length,
+                      itemCount: _filteredNotula.length, // Use _filteredNotula here
                       itemBuilder: (context, index) {
-                        final notula = _daftarNotula[index];
+                        final notula = _filteredNotula[index]; // Use _filteredNotula here
                         return NotulaListItem(
                           notula: notula,
                           isAdmin: isAdmin,
                           onEdit: isAdmin ? () {
-                            // Pengecekan ID untuk onEdit
                             if (notula.id == null || notula.id!.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('ID Notula tidak valid untuk edit.')),
@@ -248,7 +290,7 @@ class _NotulaScreenState extends State<NotulaScreen> {
                               ),
                             );
                           } : null,
-                          onDelete: isAdmin ? () => _deleteNotula(notula.id) : null, // ID bisa null
+                          onDelete: isAdmin ? () => _deleteNotula(notula.id) : null,
                           onTap: () => _navigateToDetailNotulaScreen(notula),
                         );
                       },

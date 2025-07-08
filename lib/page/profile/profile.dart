@@ -4,7 +4,7 @@ import 'package:plan_ease/widget/component/bottombar.dart';
 import 'package:plan_ease/widget/profile/profile.dart';
 import 'package:plan_ease/page/login/login.dart';
 import 'package:plan_ease/model/profile.dart';
-import 'package:plan_ease/service/auth_service.dart'; 
+import 'package:plan_ease/service/auth_service.dart';
 import 'package:plan_ease/service/profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -19,21 +19,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late ProfileService _profileService;
   late AuthService _authService;
 
+  // NEW: Add a nullable Profile variable to hold the fetched profile
+  Profile? _currentProfile;
+
   @override
   void initState() {
     super.initState();
     _authService = AuthService();
     _profileService = ProfileService(_authService);
 
+    // Initial call to fetch profile data
     _profileFuture = _fetchProfileData();
   }
 
-  Future<Profile> _fetchProfileData() async { 
+  Future<Profile> _fetchProfileData() async {
     try {
       final int? currentUserId = await _authService.getCurrentUserId();
 
       if (currentUserId != null && currentUserId > 0) {
-        return await _profileService.getProfileUser(currentUserId);
+        final fetchedProfile = await _profileService.getProfileUser(currentUserId);
+        // NEW: Update the _currentProfile state variable
+        if (mounted) {
+          setState(() {
+            _currentProfile = fetchedProfile;
+          });
+        }
+        return fetchedProfile;
       } else {
         throw Exception('ID Pengguna tidak ditemukan atau tidak valid. Harap login kembali.');
       }
@@ -66,7 +77,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD9E5D6),
-      appBar: const CustomAppBar(),
+      // NEW: Pass the _currentProfile to CustomAppBar
+      // It might be null initially while loading, which CustomAppBar handles.
+      appBar: CustomAppBar(userProfile: _currentProfile),
       body: FutureBuilder<Profile>(
         future: _profileFuture,
         builder: (context, snapshot) {
@@ -88,7 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ElevatedButton(
                       onPressed: () {
                         setState(() {
-                          _profileFuture = _fetchProfileData();
+                          _profileFuture = _fetchProfileData(); // Re-fetch data on retry
                         });
                       },
                       child: const Text('Coba Lagi'),
@@ -110,6 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   text: 'Keluar',
                   onTap: () async {
                     await _authService.clearAuthData();
+                    // ignore: use_build_context_synchronously
                     Navigator.of(context).pushAndRemoveUntil(
                       _slideOnlyToLogin(const LoginScreen()),
                       (route) => false,

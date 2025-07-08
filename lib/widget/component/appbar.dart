@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:plan_ease/page/profile/profile.dart';
 import 'package:plan_ease/page/notification/notification.dart';
+import 'package:plan_ease/model/profile.dart'; // Import your Profile model
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const CustomAppBar({super.key});
+  // 1. Add a Profile parameter
+  final Profile? userProfile;
+
+  const CustomAppBar({super.key, this.userProfile});
 
   Route _animatedRoute(Widget page) {
     return PageRouteBuilder(
@@ -57,9 +61,49 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               children: [
                 // Avatar user
                 GestureDetector(
-                  child: const CircleAvatar(
+                  // Navigate to ProfileScreen when avatar is tapped
+                  onTap: () {
+                    Navigator.of(context).push(_animatedRoute(const ProfileScreen()));
+                  },
+                  child: CircleAvatar(
                     radius: 18,
-                    backgroundImage: AssetImage('assets/images/user.jpg'),
+                    // 2. Use conditional logic for backgroundImage
+                    backgroundImage: (userProfile?.photoProfileUrl != null &&
+                            userProfile!.photoProfileUrl!.isNotEmpty)
+                        ? NetworkImage(userProfile!.photoProfileUrl!) as ImageProvider<Object>
+                        : const AssetImage('assets/images/default_profile.png'), // Fallback image
+                    backgroundColor: Colors.grey[200],
+                    child: (userProfile?.photoProfileUrl != null &&
+                            userProfile!.photoProfileUrl!.isNotEmpty)
+                        ? ClipOval(
+                            child: Image.network(
+                              userProfile!.photoProfileUrl!,
+                              width: 36, // Double the radius for width/height
+                              height: 36, // Double the radius for width/height
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                    strokeWidth: 2,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Error loading profile image in AppBar: $error');
+                                return Icon(
+                                  Icons.broken_image,
+                                  size: 18, // Half the radius for icon size
+                                  color: Colors.grey[400],
+                                );
+                              },
+                            ),
+                          )
+                        : null, // No child if using default asset image
                   ),
                 ),
                 // Judul tengah

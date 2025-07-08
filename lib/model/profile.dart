@@ -1,5 +1,5 @@
 import 'package:intl/intl.dart';
-import 'package:plan_ease/model/auth.dart'; // Impor User class dari auth.dart
+import 'package:plan_ease/model/auth.dart'; 
 
 class Profile {
   final int id;
@@ -10,7 +10,7 @@ class Profile {
   final String? position;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final User? user; // Menambahkan kembali properti User untuk mem-parsing data bersarang
+  final User? user; 
 
   Profile({
     required this.id,
@@ -21,7 +21,7 @@ class Profile {
     this.position,
     this.createdAt,
     this.updatedAt,
-    this.user, // Menambahkan ke konstruktor
+    this.user,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {

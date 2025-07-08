@@ -42,6 +42,13 @@ dependencies:
   shared_preferences: ^2.5.3
   intl: ^0.20.2
   image_picker: ^1.1.2
+  # Firebase Core untuk inisialisasi Firebase
+  firebase_core: ^2.25.4
+  # Firebase Messaging untuk notifikasi push
+  firebase_messaging: ^14.7.19
+  # Firebase Analytics (opsional, tapi sering digunakan dengan FCM)
+  firebase_analytics: ^10.8.8
+  # flutter_local_notifications: ^19.3.0
 
 dev_dependencies:
   flutter_test:
